@@ -13,6 +13,10 @@ prop_insert :: String -> Bool
 prop_insert sl =
   F.and . fmap (CF.lookup sl) $ CF.fromList [sl]
 
+prop_lookup_empty :: Int -> Bool
+prop_lookup_empty sl =
+  not . F.and . fmap (CF.lookup sl) $ CF.fromList ([] :: [Int])
+
 -- This will actually fail every so often - not a great property
 -- We should check something about the size and expectation of failure
 prop_insert_many :: Property

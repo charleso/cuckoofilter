@@ -65,11 +65,11 @@ for n = 0; n < MaxNumKicks; n++ do
 // Hashtable is considered full;
 return Failure;
 -}
-insert :: Hashable a => a -> CuckooFilter -> Maybe CuckooFilter
+insert :: (Hashable a, Show a) => a -> CuckooFilter -> Maybe CuckooFilter
 insert x cf =
   let f = fingerprint x
-      i1 = hash x
-      i2 = i1 `xor` hash x
+      i1 = hash' x
+      i2 = i1 `xor` hash' x
       b1 = bucket i1 cf
       b2 = bucket i2 cf
       b = findEmpty b1 cf <|> findEmpty b2 cf
@@ -111,14 +111,14 @@ if bucket[i1] or bucket[i2] has f then
   return True;
 return False;
 -}
-lookup :: Hashable a => a -> CuckooFilter -> Bool
+lookup :: (Hashable a, Show a) => a -> CuckooFilter -> Bool
 lookup x =
   isJust . lookup' x
 
-lookup' :: Hashable a => a -> CuckooFilter -> Maybe BucketIndex
+lookup' :: (Hashable a, Show a) => a -> CuckooFilter -> Maybe BucketIndex
 lookup' x cf =
   let f = fingerprint x
-      i1 = hash x
+      i1 = hash' x
       i2 = i1 `xor` hash f
    in hasFingerprint f (bucket i1 cf) cf <|> hasFingerprint f (bucket i2 cf) cf
 
@@ -133,7 +133,7 @@ if bucket[i1] or bucket[i2] has f then
   return True;
 return False;
 -}
-delete :: Hashable a => a -> CuckooFilter -> (Bool, CuckooFilter)
+delete :: (Hashable a, Show a) => a -> CuckooFilter -> (Bool, CuckooFilter)
 delete x cf =
   case lookup' x cf of
     Just b' ->
@@ -147,13 +147,19 @@ delete x cf =
 render :: CuckooFilter -> String
 render = unlines . fmap show . chunksOf bucketSize . V.toList
 
-fromList :: Hashable a => [a] -> Maybe CuckooFilter
+fromList :: (Hashable a, Show a) => [a] -> Maybe CuckooFilter
 fromList =
   -- TODO Pick a better size
   foldM (flip insert) (empty 100)
 
 
 --- Private ---
+
+hash' :: Hashable a => a -> Hash
+hash' x =
+  let h = hash x
+   -- TODO Yeah this is horrible
+   in if h == missing then 1 else h
 
 bucket :: Hash -> CuckooFilter -> Bucket
 bucket x cf =
@@ -176,5 +182,5 @@ remove b cf =
   cf // [(b, missing)]
 
 -- Need to make sure this isn't exaclty the same as the first hash, otherwise it's useless
-fingerprint :: Hashable a => a -> Fingerprint
-fingerprint = hash . hash
+fingerprint :: (Hashable a, Show a) => a -> Fingerprint
+fingerprint = hash . show
