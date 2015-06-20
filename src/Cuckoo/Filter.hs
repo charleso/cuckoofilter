@@ -25,12 +25,21 @@ newtype Bucket = Bucket Int deriving (Eq, Ord, Show)
 
 type Hash = Int
 
-type BucketIndex = (Bucket, Int)
+data BucketIndex =
+    BucketIndex Bucket Int
+  deriving (Eq, Show)
 
-newtype Fingerprint = Fingerprint String deriving (Eq, Ord, Show)
+newtype Fingerprint =
+    Fingerprint String
+  deriving (Eq, Ord, Show)
 
 type Fingerprints = M.Map Int Fingerprint
-type CuckooFilter = M.Map Bucket Fingerprints
+
+data CuckooFilter =
+  CuckooFilter {
+    cuckooBuckets :: Int
+  , cuckooMap :: M.Map Bucket Fingerprints
+  } deriving (Eq, Show)
 
 --- Constants ---
 
@@ -44,7 +53,7 @@ maxNumKicks = 500
 --- API ---
 
 empty :: Int -> CuckooFilter
-empty _ = M.empty
+empty n = CuckooFilter n M.empty
 
 {-
 f = fingerprint(x);
@@ -85,7 +94,7 @@ insert x cf =
 insertSwap :: Int -> Hash -> Fingerprint -> CuckooFilter -> Maybe CuckooFilter
 insertSwap depth i f cf =
       -- For some definition of "random"
-  let randomEntry = (bucket i cf, 0) -- 0 to bucketSize
+  let randomEntry = (BucketIndex (bucket i cf) 0) -- 0 to bucketSize
       -- Keep track of the previous value
       v = getFP randomEntry cf
       cf' = add f randomEntry cf
@@ -145,7 +154,7 @@ delete x cf =
 --- Utils ---
 
 render :: CuckooFilter -> String
-render = unlines . fmap show . chunksOf bucketSize . M.toList
+render = unlines . fmap show . chunksOf bucketSize . M.toList . cuckooMap
 
 fromList :: (Hashable a, Show a) => Int -> [a] -> Maybe CuckooFilter
 fromList n =
@@ -159,28 +168,28 @@ hash' x =
   hash x
 
 bucket :: Hash -> CuckooFilter -> Bucket
-bucket x _ =
-  Bucket x
+bucket x (CuckooFilter n _) =
+  Bucket $ x `mod` n
 
 findEmpty :: Bucket -> CuckooFilter -> Maybe BucketIndex
-findEmpty b cf =
+findEmpty b (CuckooFilter _ cf) =
   let b' = M.size . fromMaybe M.empty $ M.lookup b cf
-  in if b' < bucketSize then Just (b, b') else Nothing
+  in if b' < bucketSize then Just (BucketIndex b b') else Nothing
 
 remove :: Fingerprint -> Bucket -> CuckooFilter -> Maybe CuckooFilter
-remove f b cf = do
+remove f b (CuckooFilter max cf) = do
   m <- M.lookup b $ cf
   fi <- elemIndex f $ M.elems m
-  pure $ M.update (Just . M.delete fi) b cf
+  pure . CuckooFilter max $ M.update (Just . M.delete fi) b cf
 
 getFP :: BucketIndex -> CuckooFilter -> Fingerprint
-getFP (b, b') =
+getFP (BucketIndex b b') =
   -- TODO Remove fromJust!
-  fromJust . M.lookup b' . fromMaybe M.empty . M.lookup b
+  fromJust . M.lookup b' . fromMaybe M.empty . M.lookup b . cuckooMap
 
 add :: Fingerprint -> BucketIndex -> CuckooFilter -> CuckooFilter
-add f (b, b') =
-  M.insertWith M.union b (M.singleton b' f)
+add f (BucketIndex b b') (CuckooFilter max cf) =
+  CuckooFilter max . M.insertWith M.union b (M.singleton b' f) $ cf
 
 -- Need to make sure this isn't exaclty the same as the first hash, otherwise it's useless
 fingerprint :: Show a => a -> Fingerprint
