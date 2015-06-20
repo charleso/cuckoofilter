@@ -1,0 +1,40 @@
+name:                  cuckoofilter
+version:               0.0.1
+license:               AllRightsReserved
+author:                Charles O'Farrell <charleso@gmail.com>
+cabal-version:         >= 1.8
+build-type:            Simple
+
+library
+  build-depends:
+                       base                            >= 3          && < 5
+                     , hashable                        == 1.2.*
+                     , split                           == 0.2.*
+                     , vector                          == 0.10.*
+
+  ghc-options:
+                       -Wall
+
+  hs-source-dirs:
+                       src
+
+  exposed-modules:
+                       Cuckoo.Filter
+
+
+
+test-suite test
+  type:                exitcode-stdio-1.0
+
+  main-is:             test.hs
+
+  ghc-options:         -Wall -threaded -O2
+
+  hs-source-dirs:
+                       test
+
+  build-depends:
+                       base                            >= 3          && < 5
+                     , cuckoofilter
+                     , QuickCheck                      == 2.7.*
+                     , quickcheck-instances            == 0.3.*
