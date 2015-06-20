@@ -13,28 +13,29 @@ import           Control.Monad
 import           Data.Bits
 import           Data.Hashable
 import           Data.Int
-import           Data.List (find)
+import           Data.List (find, elemIndex)
 import           Data.List.Split
 import           Data.Maybe
-import           Data.Vector (Vector, (!), (//))
-import qualified Data.Vector as V
+import qualified Data.Map as M
 
 import           Prelude hiding (lookup)
 
 
-type Bucket = Int
-type BucketIndex = Int
+newtype Bucket = Bucket Int deriving (Eq, Ord, Show)
+
 type Hash = Int
-type Fingerprint = String
-type CuckooFilter = Vector Fingerprint
+
+type BucketIndex = (Bucket, Int)
+
+newtype Fingerprint = Fingerprint String deriving (Eq, Ord, Show)
+
+type Fingerprints = M.Map Int Fingerprint
+type CuckooFilter = M.Map Bucket Fingerprints
 
 --- Constants ---
 
 bucketSize :: Int
 bucketSize = 4
-
-missing :: Fingerprint
-missing = ""
 
 maxNumKicks :: Int
 maxNumKicks = 500
@@ -43,7 +44,7 @@ maxNumKicks = 500
 --- API ---
 
 empty :: Int -> CuckooFilter
-empty n = V.replicate (n * bucketSize) missing
+empty _ = M.empty
 
 {-
 f = fingerprint(x);
@@ -84,10 +85,10 @@ insert x cf =
 insertSwap :: Int -> Hash -> Fingerprint -> CuckooFilter -> Maybe CuckooFilter
 insertSwap depth i f cf =
       -- For some definition of "random"
-  let randomEntry = bucket i cf
+  let randomEntry = (bucket i cf, 0) -- 0 to bucketSize
       -- Keep track of the previous value
-      v = cf ! randomEntry
-      cf' = cf // [(randomEntry, f)]
+      v = getFP randomEntry cf
+      cf' = add f randomEntry cf
       i' = i `xor` hash f
       b = findEmpty (bucket i' cf) cf
    in
@@ -114,12 +115,12 @@ lookup :: (Hashable a, Show a) => a -> CuckooFilter -> Bool
 lookup x =
   isJust . lookup' x
 
-lookup' :: (Hashable a, Show a) => a -> CuckooFilter -> Maybe BucketIndex
+lookup' :: (Hashable a, Show a) => a -> CuckooFilter -> Maybe CuckooFilter
 lookup' x cf =
   let f = fingerprint x
       i1 = hash' x
       i2 = i1 `xor` hash f
-   in hasFingerprint f (bucket i1 cf) cf <|> hasFingerprint f (bucket i2 cf) cf
+   in remove f (bucket i1 cf) cf <|> remove f (bucket i2 cf) cf
 
 
 
@@ -136,7 +137,7 @@ delete :: (Hashable a, Show a) => a -> CuckooFilter -> (Bool, CuckooFilter)
 delete x cf =
   case lookup' x cf of
     Just b' ->
-      (True, remove b' cf)
+      (True, b')
     Nothing ->
       (False, cf)
 
@@ -144,12 +145,11 @@ delete x cf =
 --- Utils ---
 
 render :: CuckooFilter -> String
-render = unlines . fmap show . chunksOf bucketSize . V.toList
+render = unlines . fmap show . chunksOf bucketSize . M.toList
 
-fromList :: (Hashable a, Show a) => [a] -> Maybe CuckooFilter
-fromList =
-  -- TODO Pick a better size
-  foldM (flip insert) (empty 100)
+fromList :: (Hashable a, Show a) => Int -> [a] -> Maybe CuckooFilter
+fromList n =
+  foldM (flip insert) (empty n)
 
 
 --- Private ---
@@ -159,25 +159,33 @@ hash' x =
   hash x
 
 bucket :: Hash -> CuckooFilter -> Bucket
-bucket x cf =
-  x `mod` (V.length cf `div` bucketSize) * bucketSize
+bucket x _ =
+  Bucket x
 
 findEmpty :: Bucket -> CuckooFilter -> Maybe BucketIndex
 findEmpty b cf =
-  find (\i -> missing == cf ! i) [b..(b + bucketSize - 1)]
+  let b' = M.size . fromMaybe M.empty $ M.lookup b cf
+  in if b' < bucketSize then Just (b, b') else Nothing
 
-hasFingerprint :: Fingerprint -> Bucket -> CuckooFilter -> Maybe BucketIndex
-hasFingerprint f b cf =
-  find (\i -> f == cf ! i) [b..(b + bucketSize - 1)]
+remove :: Fingerprint -> Bucket -> CuckooFilter -> Maybe CuckooFilter
+remove f b cf = do
+  m <- M.lookup b $ cf
+  fi <- elemIndex f $ M.elems m
+  pure $ M.update (Just . M.delete fi) b cf
+
+getFP :: BucketIndex -> CuckooFilter -> Fingerprint
+getFP (b, b') =
+  -- TODO Remove fromJust!
+  fromJust . M.lookup b' . fromMaybe M.empty . M.lookup b
 
 add :: Fingerprint -> BucketIndex -> CuckooFilter -> CuckooFilter
-add f b cf =
-  cf // [(b, f)]
-
-remove :: BucketIndex -> CuckooFilter -> CuckooFilter
-remove b cf =
-  cf // [(b, missing)]
+add f (b, b') =
+  M.insertWith M.union b (M.singleton b' f)
 
 -- Need to make sure this isn't exaclty the same as the first hash, otherwise it's useless
 fingerprint :: Show a => a -> Fingerprint
-fingerprint = show
+fingerprint = Fingerprint . show
+
+instance Hashable Fingerprint where
+  hash (Fingerprint f) = hash f
+  hashWithSalt i (Fingerprint f) = hashWithSalt i f

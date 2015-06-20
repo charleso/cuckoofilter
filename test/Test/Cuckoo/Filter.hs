@@ -11,21 +11,21 @@ import           Test.QuickCheck
 
 prop_insert :: String -> Bool
 prop_insert sl =
-  F.and . fmap (CF.lookup sl) $ CF.fromList [sl]
+  F.and . fmap (CF.lookup sl) $ CF.fromList 100 [sl]
 
 prop_lookup_empty :: Int -> Bool
 prop_lookup_empty sl =
-  not . F.and . fmap (CF.lookup sl) $ CF.fromList ([] :: [Int])
+  not . F.and . fmap (CF.lookup sl) $ CF.fromList 100 ([] :: [Int])
 
 -- This will actually fail every so often - not a great property
 -- We should check something about the size and expectation of failure
 prop_insert_many :: Property
 prop_insert_many = forAll arbitrary $ \(sl :: [Int]) ->
-  fmap (\cf -> fmap (flip CF.lookup cf) sl) (CF.fromList sl) === Just (fmap (const True) sl)
+  fmap (\cf -> fmap (flip CF.lookup cf) sl) (CF.fromList 100 sl) === Just (fmap (const True) sl)
 
 prop_delete :: String -> Bool
 prop_delete sl =
-  F.all fst . fmap (CF.delete sl) $ CF.fromList [sl]
+  F.all fst . fmap (CF.delete sl) $ CF.fromList 100 [sl]
 
 prop_delete_empty :: String -> Bool
 prop_delete_empty sl =
