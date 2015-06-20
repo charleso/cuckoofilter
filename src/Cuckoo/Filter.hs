@@ -21,26 +21,6 @@ import qualified Data.Map as M
 import           Prelude hiding (lookup)
 
 
-newtype Bucket = Bucket Int deriving (Eq, Ord, Show)
-
-type Hash = Int
-
-data BucketIndex =
-    BucketIndex Bucket Int
-  deriving (Eq, Show)
-
-newtype Fingerprint =
-    Fingerprint String
-  deriving (Eq, Ord, Show)
-
-type Fingerprints = M.Map Int Fingerprint
-
-data CuckooFilter =
-  CuckooFilter {
-    cuckooBuckets :: Int
-  , cuckooMap :: M.Map Bucket Fingerprints
-  } deriving (Eq, Show)
-
 --- Constants ---
 
 bucketSize :: Int
@@ -162,6 +142,26 @@ fromList n =
 
 
 --- Private ---
+
+newtype Bucket = Bucket Int deriving (Eq, Ord, Show)
+
+type Hash = Int
+
+data BucketIndex =
+    BucketIndex Bucket Int
+  deriving (Eq, Show)
+
+newtype Fingerprint =
+    Fingerprint String
+  deriving (Eq, Ord, Show)
+
+type Fingerprints = M.Map Int Fingerprint
+
+data CuckooFilter =
+  CuckooFilter {
+    cuckooBuckets :: Int
+  , cuckooMap :: M.Map Bucket Fingerprints
+  } deriving (Eq, Show)
 
 hash' :: Hashable a => a -> Hash
 hash' x =
