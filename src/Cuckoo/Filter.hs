@@ -22,20 +22,19 @@ import qualified Data.Vector as V
 import           Prelude hiding (lookup)
 
 
-type CuckooFilter = Vector Int
 type Bucket = Int
 type BucketIndex = Int
 type Hash = Int
--- TODO How small is this Int supposed to be?
-type Fingerprint = Int
+type Fingerprint = String
+type CuckooFilter = Vector Fingerprint
 
 --- Constants ---
 
 bucketSize :: Int
 bucketSize = 4
 
-missing :: Int
-missing = 0
+missing :: Fingerprint
+missing = ""
 
 maxNumKicks :: Int
 maxNumKicks = 500
@@ -157,9 +156,7 @@ fromList =
 
 hash' :: Hashable a => a -> Hash
 hash' x =
-  let h = hash x
-   -- TODO Yeah this is horrible
-   in if h == missing then 1 else h
+  hash x
 
 bucket :: Hash -> CuckooFilter -> Bucket
 bucket x cf =
@@ -182,5 +179,5 @@ remove b cf =
   cf // [(b, missing)]
 
 -- Need to make sure this isn't exaclty the same as the first hash, otherwise it's useless
-fingerprint :: (Hashable a, Show a) => a -> Fingerprint
-fingerprint = hash . show
+fingerprint :: Show a => a -> Fingerprint
+fingerprint = show
