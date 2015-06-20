@@ -124,12 +124,12 @@ lookup :: (Hashable a, Show a) => a -> CuckooFilter -> Bool
 lookup x =
   isJust . lookup' x
 
-lookup' :: (Hashable a, Show a) => a -> CuckooFilter -> Maybe CuckooFilter
+lookup' :: (Hashable a, Show a) => a -> CuckooFilter -> Maybe BucketIndex
 lookup' x cf =
   let f = fingerprint x
       i1 = hash' x
       i2 = i1 `xor` hash f
-   in remove f (bucket i1 cf) cf <|> remove f (bucket i2 cf) cf
+   in findF f (bucket i1 cf) cf <|> findF f (bucket i2 cf) cf
 
 
 
@@ -146,7 +146,7 @@ delete :: (Hashable a, Show a) => a -> CuckooFilter -> (Bool, CuckooFilter)
 delete x cf =
   case lookup' x cf of
     Just b' ->
-      (True, b')
+      (True, remove b' cf)
     Nothing ->
       (False, cf)
 
@@ -176,11 +176,15 @@ findEmpty b (CuckooFilter _ cf) =
   let b' = M.size . fromMaybe M.empty $ M.lookup b cf
   in if b' < bucketSize then Just (BucketIndex b b') else Nothing
 
-remove :: Fingerprint -> Bucket -> CuckooFilter -> Maybe CuckooFilter
-remove f b (CuckooFilter max cf) = do
+findF :: Fingerprint -> Bucket -> CuckooFilter -> Maybe BucketIndex
+findF f b (CuckooFilter _ cf) = do
   m <- M.lookup b $ cf
   fi <- elemIndex f $ M.elems m
-  pure . CuckooFilter max $ M.update (Just . M.delete fi) b cf
+  pure $ BucketIndex b fi
+
+remove :: BucketIndex -> CuckooFilter -> CuckooFilter
+remove (BucketIndex b fi) cf@(CuckooFilter max m) =
+  CuckooFilter max $ M.update (Just . M.delete fi) b m
 
 getFP :: BucketIndex -> CuckooFilter -> Fingerprint
 getFP (BucketIndex b b') =
