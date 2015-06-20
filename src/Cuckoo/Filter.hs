@@ -13,7 +13,7 @@ import           Control.Monad
 import           Data.Bits
 import           Data.Hashable
 import           Data.Int
-import           Data.List (find, elemIndex)
+import           Data.List (elemIndex)
 import           Data.List.Split
 import           Data.Maybe
 import qualified Data.Map as M
@@ -134,7 +134,7 @@ delete x cf =
 --- Utils ---
 
 render :: CuckooFilter -> String
-render = unlines . fmap show . chunksOf bucketSize . M.toList . cuckooMap
+render (CuckooFilter _ m) = unlines . fmap show . chunksOf bucketSize . M.toList $ m
 
 fromList :: (Hashable a, Show a) => Int -> [a] -> Maybe CuckooFilter
 fromList n =
@@ -158,10 +158,8 @@ newtype Fingerprint =
 type Fingerprints = M.Map Int Fingerprint
 
 data CuckooFilter =
-  CuckooFilter {
-    cuckooBuckets :: Int
-  , cuckooMap :: M.Map Bucket Fingerprints
-  } deriving (Eq, Show)
+    CuckooFilter Int (M.Map Bucket Fingerprints)
+  deriving (Eq, Show)
 
 hash' :: Hashable a => a -> Hash
 hash' x =
@@ -183,17 +181,17 @@ findF f b (CuckooFilter _ cf) = do
   pure $ BucketIndex b fi
 
 remove :: BucketIndex -> CuckooFilter -> CuckooFilter
-remove (BucketIndex b fi) cf@(CuckooFilter max m) =
-  CuckooFilter max $ M.update (Just . M.delete fi) b m
+remove (BucketIndex b fi) (CuckooFilter max' m) =
+  CuckooFilter max' $ M.update (Just . M.delete fi) b m
 
 getFP :: BucketIndex -> CuckooFilter -> Fingerprint
-getFP (BucketIndex b b') =
+getFP (BucketIndex b b') (CuckooFilter _ m) =
   -- TODO Remove fromJust!
-  fromJust . M.lookup b' . fromMaybe M.empty . M.lookup b . cuckooMap
+  fromJust . M.lookup b' . fromMaybe M.empty . M.lookup b $ m
 
 add :: Fingerprint -> BucketIndex -> CuckooFilter -> CuckooFilter
-add f (BucketIndex b b') (CuckooFilter max cf) =
-  CuckooFilter max . M.insertWith M.union b (M.singleton b' f) $ cf
+add f (BucketIndex b b') (CuckooFilter max' cf) =
+  CuckooFilter max' . M.insertWith M.union b (M.singleton b' f) $ cf
 
 -- Need to make sure this isn't exaclty the same as the first hash, otherwise it's useless
 fingerprint :: Show a => a -> Fingerprint
