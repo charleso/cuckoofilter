@@ -1,7 +1,9 @@
+import           Test.Arc
 import           Test.Cuckoo.Filter
 
 main :: IO ()
 main =
   sequence_ [
-      Test.Cuckoo.Filter.tests
+      Test.Arc.tests
+    , Test.Cuckoo.Filter.tests
     ]
